@@ -3,14 +3,20 @@ import torch
 from sklearn import preprocessing
 
 
-class DATA_LOADER(object):
+class DataLoader(object):
     def __init__(self, opt):
         self.index_in_epoch = 0
         self.epochs_completed = 0
         # read malicious traffic and benign traffic
-        malicious_content = np.load(f"./data/{opt.dataset}.npz", allow_pickle=True)  # change to the root path
-        benign_content = np.load("./data/benign.npz", allow_pickle=True)  # change to the root path
-
+        if opt.dataset == 'botiot':
+            malicious_content = np.load(f"./data/botiot/{opt.split}.npz", allow_pickle=True)  # change to the root path
+            benign_content = np.load("./data/botiot/benign.npz", allow_pickle=True)  # change to the root path
+        elif opt.dataset == 'cicids':
+            malicious_content = np.load(f"./data/cicids/{opt.split}.npz", allow_pickle=True)  # change to the root path
+            benign_content = np.load("./data/cicids/benign.npz", allow_pickle=True)  # change to the root path
+        else:
+            print("You need to add new dataset in the dataloader.py")
+            exit(0)
         # benign traffic feature and label
         bx_train = benign_content['bx_train']
         by_train = benign_content['by_train']
@@ -82,6 +88,9 @@ class DATA_LOADER(object):
         self.novelclasses = torch.unique(self.test_unseen_label)
         self.maliciousclasses = torch.cat((self.knownclasses, self.novelclasses), dim=0)
         self.allclasses = torch.unique(self.test_label)
+
+        # unique item for MADF
+        self.madfknownclasses = torch.unique(self.train_label)
 
         # number of samples in training set and test set
         self.ntrain = self.train_feature.size()[0]
