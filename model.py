@@ -48,7 +48,7 @@ class Encoder(nn.Module):
         z = mu
         hs = z[:, :self.hs_dim]
         hu = z[:, self.hs_dim:]
-        # hs_l2_real = F.normalize(self.fc3(hs), dim=1)
+        # hs_l2_real = F.normalize(self.fc3(hs), dim=2)
         hs_l2_real = F.normalize(self.fc3(hs))
-        # z[:, self.hs_dim:] = 0
+        # z[:, self.hs_dim:] = 1
         return mu, hs, hu, z, hs_l2_real

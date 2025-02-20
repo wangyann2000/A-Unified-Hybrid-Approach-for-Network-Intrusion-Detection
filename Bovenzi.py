@@ -113,27 +113,6 @@ def inverse_map(label, classes):
     return mapped_label
 
 
-def indicator(k_matrix, sentry):
-    # obtain adaptive K for each sample
-    k_values = adaptive_K.view(-1).long()
-
-    # representing the first k neighbors to be calculated for each sample
-    indices = torch.arange(k_matrix.size(1)).expand(k_matrix.size(0), -1).to(device)
-
-    # broadcast K for each sample
-    mask = indices < k_values.unsqueeze(1)
-
-    # calculate seen count for each sample
-    seen_count = (k_matrix < sentry).float() * mask.float()
-
-    seen_count = seen_count.sum(dim=1)
-
-    # calculate ood score
-    score = k_values.float() / (seen_count + 1)
-
-    return score
-
-
 def evaluation(y_true, score, option):
     # classification report
     if option == 3:
@@ -248,7 +227,7 @@ def evaluation(y_true, score, option):
 parser = argparse.ArgumentParser()
 
 # set hyperparameters
-# note: Since Bot-Iot dataset has only 5 classes, no customized model is trained, please set the customized to False.
+# note: Since Bot-Iot dataset has only 5 classes, no customized model is trained, please set the customized parameter to false.
 # note: For all CIC-IDS2017 dataset splits, use cicids_args.json in args folder to get the reported result.
 # note: For all Bot-Iot dataset splits, use BotIot_args.json in args folder to get the reported result.
 parser.add_argument('--dataset', default='cicids', help='Dataset')
@@ -311,56 +290,23 @@ print("Inference time of the detector：%.4f seconds" % (end_time - start_time))
 
 # 2nd step: Discriminate unknown categories traffic
 test_feature = dataset.all_malicious_feature[dataset.train_seen_feature.shape[0]:]
-
-# sentry denotes whether it belongs to the test set or training set
-sentry = dataset.train_seen_feature.shape[0]
-
-# initialize hyperparameters and matrices
-pairwise = nn.PairwiseDistance(p=2)
-khat = opt.khat
-
 # training procedure of discriminator
 print("start fitting and evaluating discriminator")
-indice_matrix = torch.load(f"./matrix/{opt.dataset}/{opt.split}/indice_matrix.pt").to(device)
-dis_matrix = torch.load(f"./matrix/{opt.dataset}/{opt.split}/dis_matrix.pt").to(device)
+known_class_classifier = xgb.XGBClassifier()
+known_class_classifier.fit(dataset.train_seen_feature.cpu().numpy(), map_label(dataset.train_seen_label, dataset.knownclasses).cpu().numpy())
+proba = known_class_classifier.predict_proba(test_feature.cpu().numpy())
+discriminator_score = np.min(proba, axis=1)
 
-# calculate khat nearest neighborhood average distance
-class_mean_distances = {}
-
-for cls in dataset.maliciousclasses:
-    class_distances = dis_matrix[dataset.test_label[dataset.benign_size_test:] == cls]
-    class_mean = class_distances.mean().item()
-    class_mean_distances[cls.item()] = class_mean
-
-for cls, mean_distance in class_mean_distances.items():
-    print(f"Class {dataset.traffic_names[cls]}: Mean nearest distance = {mean_distance}")
-
-# inference procedure of discriminator
-min_distance = torch.min(dis_matrix)
-max_distance = torch.max(dis_matrix)
-normalized_distances = (dis_matrix - min_distance) / (max_distance - min_distance)
-inverted_distances = 1 - normalized_distances
-K_min = opt.kmin
-K_max = opt.kmax
-adaptive_K = (K_min + inverted_distances * (K_max - K_min)).long()
-discriminator_score = indicator(indice_matrix, sentry)
-
-discriminator_prediction, threshold = evaluation(dataset.test_seen_unseen_label.cpu().numpy(),
-                                                  discriminator_score.cpu().numpy(), 2)
+discriminator_prediction, threshhold = evaluation(dataset.test_seen_unseen_label.cpu().numpy(), discriminator_score, 2)
 
 print("end fitting and evaluating discriminator")
 
 # 3rd step: Classify known categories traffic
 print("start fitting and evaluating classifier")
-# training procedure of known_class_classifier
-known_class_classifier = xgb.XGBClassifier()
-known_class_classifier.fit(dataset.train_seen_feature.cpu().numpy(),
-                           map_label(dataset.train_seen_label, dataset.knownclasses).cpu().numpy())
-# inference procedure of known_class_classifier
+# inferece proceduce of known_class_classifier
 known_preds = known_class_classifier.predict(dataset.test_seen_feature.cpu().numpy())
 # evaluation of known_class_classifier
 evaluation(map_label(dataset.test_seen_label, dataset.knownclasses).cpu().numpy(), known_preds, 3)
-
 print("end fitting and evaluating classifier")
 
 # 4th step: Classify unknown categories traffic (Optional)
@@ -441,28 +387,11 @@ with torch.no_grad():
         test_benign_feature = dataset.test_feature[:dataset.benign_size_test]
         benign_features = test_benign_feature[det_wrong_benign]
 
-        indice_matrix = torch.IntTensor(size=(benign_features.shape[0], opt.kmax)).to(device)
-        dis_matrix = torch.FloatTensor(size=(benign_features.shape[0], 1)).to(device)
+        proba = known_class_classifier.predict_proba(benign_features.cpu().numpy())
+        benign_discriminator_scores = np.min(proba, axis=1)
 
-        for i in trange(benign_features.shape[0]):
-            expand_feature = benign_features[i].unsqueeze(0).expand_as(dataset.all_malicious_feature)
-            dis = pairwise(expand_feature, dataset.all_malicious_feature)
-            # sort and selection
-            distances, indices = torch.topk(dis, k=khat, largest=False)
-            indice_matrix[i] = indices[:opt.kmax]
-            dis_matrix[i] = distances.mean()
-
-        min_distance = torch.min(dis_matrix)
-        max_distance = torch.max(dis_matrix)
-        normalized_distances = (dis_matrix - min_distance) / (max_distance - min_distance)
-        inverted_distances = 1 - normalized_distances
-        K_min = opt.kmin
-        K_max = opt.kmax
-        adaptive_K = (K_min + inverted_distances * (K_max - K_min)).long()
-
-        benign_discriminator_scores = indicator(indice_matrix, sentry).cpu().numpy()
         if opt.customized:
-            known_unknown_preds = np.where(benign_discriminator_scores < threshold,
+            known_unknown_preds = np.where(benign_discriminator_scores < threshhold,
                                            inverse_map(known_class_classifier.predict(benign_features.cpu().numpy()),
                                                        dataset.knownclasses),
                                            inverse_map(unknown_class_classifier.predict(
@@ -471,7 +400,7 @@ with torch.no_grad():
             # random assignment for unseen classes
             corrected_benign_unknown_preds = torch.randint(low=0, high=dataset.novelclasses.shape[0],
                                                            size=(benign_features.shape[0],))
-            known_unknown_preds = np.where(benign_discriminator_scores < threshold,
+            known_unknown_preds = np.where(benign_discriminator_scores < threshhold,
                                            inverse_map(known_class_classifier.predict(benign_features.cpu().numpy()),
                                                        dataset.knownclasses),
                                            inverse_map(corrected_benign_unknown_preds, dataset.novelclasses))
