@@ -74,7 +74,7 @@ class ConfusionMatrix(object):
                 plt.gca().get_xticklabels()[index].set_color('red')
                 plt.gca().get_yticklabels()[index].set_color('red')
 
-        result_dir = f'./result/{opt.dataset}/hybrid//Bovenzi/{opt.split}/'
+        result_dir = f'./result/{opt.dataset}/hybrid/Bovenzi/{opt.split}/'
         os.makedirs(result_dir, exist_ok=True)
         plt.savefig(result_dir + 'confusion_matrix.svg', bbox_inches='tight')
         plt.show()
