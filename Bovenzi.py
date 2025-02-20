@@ -7,11 +7,9 @@ import torch
 import os
 import argparse
 import xgboost as xgb
-from torch import nn
 from dataloader import DataLoader
 from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, f1_score, accuracy_score, confusion_matrix, \
     classification_report, roc_curve
-from tqdm import trange
 from model import Embedding_Net
 import json
 
@@ -76,7 +74,7 @@ class ConfusionMatrix(object):
                 plt.gca().get_xticklabels()[index].set_color('red')
                 plt.gca().get_yticklabels()[index].set_color('red')
 
-        result_dir = f'./result/{opt.dataset}/hybrid/{opt.split}/'
+        result_dir = f'./result/{opt.dataset}/hybrid//Bovenzi/{opt.split}/'
         os.makedirs(result_dir, exist_ok=True)
         plt.savefig(result_dir + 'confusion_matrix.svg', bbox_inches='tight')
         plt.show()
@@ -229,7 +227,7 @@ parser = argparse.ArgumentParser()
 # set hyperparameters
 # note: Since Bot-Iot dataset has only 5 classes, no customized model is trained, please set the customized parameter to false.
 # note: For all CIC-IDS2017 dataset splits, use cicids_args.json in args folder to get the reported result.
-# note: For all Bot-Iot dataset splits, use BotIot_args.json in args folder to get the reported result.
+# note: For all Bot-Iot dataset splits, use botiot_args.json in args folder to get the reported result.
 parser.add_argument('--dataset', default='cicids', help='Dataset')
 parser.add_argument('--split', default='4', help='Dataset split for training and evaluation')
 parser.add_argument('--manualSeed', type=int, default=42, help='Random seed')
@@ -246,8 +244,8 @@ parser.add_argument('--threshold', type=float, default=0.99, help='Evaluate mode
 opt = parser.parse_args()
 
 # load pre-defined hyperparameters
-# note: If you want to customize the hyperparameters, please comment out this line of code.
-opt = load_args("args/BotIot_args.json")
+# note: Please comment out this line of code, if you want to customize the hyperparameters,
+opt = load_args("args/botiot_args.json")
 
 # set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -297,13 +295,13 @@ known_class_classifier.fit(dataset.train_seen_feature.cpu().numpy(), map_label(d
 proba = known_class_classifier.predict_proba(test_feature.cpu().numpy())
 discriminator_score = np.min(proba, axis=1)
 
-discriminator_prediction, threshhold = evaluation(dataset.test_seen_unseen_label.cpu().numpy(), discriminator_score, 2)
+discriminator_prediction, threshold = evaluation(dataset.test_seen_unseen_label.cpu().numpy(), discriminator_score, 2)
 
 print("end fitting and evaluating discriminator")
 
 # 3rd step: Classify known categories traffic
 print("start fitting and evaluating classifier")
-# inferece proceduce of known_class_classifier
+# inference procedure of known_class_classifier
 known_preds = known_class_classifier.predict(dataset.test_seen_feature.cpu().numpy())
 # evaluation of known_class_classifier
 evaluation(map_label(dataset.test_seen_label, dataset.knownclasses).cpu().numpy(), known_preds, 3)
@@ -391,7 +389,7 @@ with torch.no_grad():
         benign_discriminator_scores = np.min(proba, axis=1)
 
         if opt.customized:
-            known_unknown_preds = np.where(benign_discriminator_scores < threshhold,
+            known_unknown_preds = np.where(benign_discriminator_scores < threshold,
                                            inverse_map(known_class_classifier.predict(benign_features.cpu().numpy()),
                                                        dataset.knownclasses),
                                            inverse_map(unknown_class_classifier.predict(
@@ -400,7 +398,7 @@ with torch.no_grad():
             # random assignment for unseen classes
             corrected_benign_unknown_preds = torch.randint(low=0, high=dataset.novelclasses.shape[0],
                                                            size=(benign_features.shape[0],))
-            known_unknown_preds = np.where(benign_discriminator_scores < threshhold,
+            known_unknown_preds = np.where(benign_discriminator_scores < threshold,
                                            inverse_map(known_class_classifier.predict(benign_features.cpu().numpy()),
                                                        dataset.knownclasses),
                                            inverse_map(corrected_benign_unknown_preds, dataset.novelclasses))

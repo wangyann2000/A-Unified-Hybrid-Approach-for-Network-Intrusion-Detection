@@ -16,7 +16,7 @@ from model import Embedding_Net
 import json
 
 # set cuda environment variable
-# note: If GPU is unavailable, please comment out this line of code.
+# note: Please comment out this line of code, if GPU is unavailable,
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 # required functions
@@ -248,9 +248,9 @@ def evaluation(y_true, score, option):
 parser = argparse.ArgumentParser()
 
 # set hyperparameters
-# note: Since Bot-Iot dataset has only 5 classes, no customized model is trained, please set the customized to False.
+# note: Please set the customized parameter to false, since Bot-Iot dataset has only 5 classes.
 # note: For all CIC-IDS2017 dataset splits, use cicids_args.json in args folder to get the reported result.
-# note: For all Bot-Iot dataset splits, use BotIot_args.json in args folder to get the reported result.
+# note: For all Bot-Iot dataset splits, use botiot_args.json in args folder to get the reported result.
 parser.add_argument('--dataset', default='cicids', help='Dataset')
 parser.add_argument('--split', default='4', help='Dataset split for training and evaluation')
 parser.add_argument('--manualSeed', type=int, default=42, help='Random seed')
@@ -268,7 +268,7 @@ opt = parser.parse_args()
 
 # load pre-defined hyperparameters
 # note: If you want to customize the hyperparameters, please comment out this line of code.
-opt = load_args("args/BotIot_args.json")
+opt = load_args("args/botiot_args.json")
 
 # set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
