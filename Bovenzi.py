@@ -10,7 +10,7 @@ import xgboost as xgb
 from dataloader import DataLoader
 from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, f1_score, accuracy_score, confusion_matrix, \
     classification_report, roc_curve
-from model import Embedding_Net
+from model import EmbeddingNet
 import json
 
 # set cuda environment variable
