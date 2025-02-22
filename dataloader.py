@@ -47,12 +47,12 @@ class DataLoader(object):
         self.train_feature = torch.tensor(combined_train_feature, dtype=torch.float32).cuda()
         self.test_feature = torch.tensor(combined_test_feature, dtype=torch.float32).cuda()
 
-        # all lables for training detector(including benign traffic features)
+        # all labels for training detector(including benign traffic features)
         self.train_label = torch.tensor(np.concatenate((by_train, train_label), axis=0), dtype=torch.long).cuda()
         self.test_label = torch.tensor(np.concatenate((by_test, test_seen_label, test_unseen_label), axis=0),
                                        dtype=torch.long).cuda()
 
-        # all binary lables for training detector(including benign traffic features, 1 for benign and 2 for malicious)
+        # all binary labels for training detector(including benign traffic features, 1 for benign and 2 for malicious)
         binary_by_train = torch.zeros(by_train.shape[0], dtype=torch.long).cuda()
         binary_by_test = torch.zeros(by_test.shape[0], dtype=torch.long).cuda()
         binary_ay_train = torch.ones(train_label.shape[0], dtype=torch.long).cuda()
@@ -65,7 +65,7 @@ class DataLoader(object):
         self.all_malicious_feature = torch.tensor(discriminator_scaler.fit_transform(combined_all_malicious_feature),
                                                   dtype=torch.float32).cuda()
 
-        # all binary malicious traffic lables for training discriminator(1 for known and 2 for unknown)
+        # all binary malicious traffic labels for training discriminator(1 for known and 2 for unknown)
         binary_ky_test = torch.zeros(test_seen_label.shape[0], dtype=torch.long).cuda()
         binary_uy_test = torch.ones(test_unseen_label.shape[0], dtype=torch.long).cuda()
         self.test_seen_unseen_label = torch.cat((binary_ky_test, binary_uy_test), dim=0)
@@ -78,7 +78,7 @@ class DataLoader(object):
         self.test_unseen_feature = torch.tensor(classifier_scaler.transform(test_unseen_feature),
                                                 dtype=torch.float32).cuda()
 
-        # all malicious traffic lables for training detector
+        # all malicious traffic labels for training detector
         self.train_seen_label = torch.tensor(train_label, dtype=torch.long).cuda()
         self.test_seen_label = torch.tensor(test_seen_label, dtype=torch.long).cuda()
         self.test_unseen_label = torch.tensor(test_unseen_label, dtype=torch.long).cuda()
@@ -97,7 +97,7 @@ class DataLoader(object):
         self.ntest = self.test_feature.size()[0]
         # size of benign traffic
         self.benign_size_test = by_test.shape[0]
-        # all categories names
+        # all categories name
         self.traffic_names = traffic_names
         # print details of the dataset
         all_labels = torch.cat((self.train_label, self.test_label), dim=0)

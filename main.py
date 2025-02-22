@@ -113,6 +113,71 @@ def inverse_map(label, classes):
     return mapped_label
 
 
+def histogram_plot(pred_score, stage):
+    # 计算 x 轴范围
+    x_min = pred_score.min()
+    x_max = pred_score.max()
+
+    # 计算自适应刻度间隔
+    range_x = x_max - x_min
+    x_interval = range_x / 5  # 让 x 轴有 5 个间隔
+
+    # 柱状图的区间（15 份）
+    bins_hist = np.linspace(x_min, x_max, 15)  # 15 份 bin
+
+    # 修正柱状图偏移问题（align='edge' 让柱子从 bins_hist[i] 开始）
+    bar_width = bins_hist[1] - bins_hist[0]
+
+    # 创建图形
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    # 设置 x 轴刻度
+    ax.set_xticks(np.arange(x_min, x_max + x_interval, x_interval))
+    ax.set_xlim(x_min - 0.02, x_max + 0.02)
+
+    # 统计每个区间中的样本比例
+    y_seen_unseen = dataset.test_seen_unseen_label.cpu().numpy()
+    if stage == 1:
+        y_true = dataset.binary_test.cpu().numpy()
+        benign_counts, _ = np.histogram(pred_score[y_true == 0], bins=bins_hist)
+        malicious = pred_score[y_true == 1]
+        seen_malicious_counts, _ = np.histogram(malicious[y_seen_unseen == 0], bins=bins_hist)
+        unseen_malicious_counts, _ = np.histogram(malicious[y_seen_unseen == 1], bins=bins_hist)
+        # 计算比例（归一化为总数的比例）
+        benign_counts = benign_counts / len(pred_score[y_true == 0])
+        seen_malicious_counts = seen_malicious_counts / len(malicious[y_seen_unseen == 0])
+        unseen_malicious_counts = unseen_malicious_counts / len(malicious[y_seen_unseen == 1])
+        # 绘制柱状图（Benign）
+        ax.bar(bins_hist[:-1], benign_counts, width=bar_width, align='edge',
+               color="#C7DDEC", edgecolor="#3E89BE", alpha=0.3, label="Benign")
+        # 设置标签和图例
+        ax.set_xlabel("Detector Score")
+        ax.set_ylabel("Density")
+        ax.set_title("Density Histogram of the Detector")
+    elif stage == 2:
+        seen_malicious_counts, _ = np.histogram(pred_score[y_seen_unseen == 0], bins=bins_hist)
+        unseen_malicious_counts, _ = np.histogram(pred_score[y_seen_unseen == 1], bins=bins_hist)
+        # 计算比例（归一化为总数的比例）
+        seen_malicious_counts = seen_malicious_counts / len(pred_score[y_seen_unseen == 0])
+        unseen_malicious_counts = unseen_malicious_counts / len(pred_score[y_seen_unseen == 1])
+        ax.set_xlabel("Discriminator Score")
+        ax.set_ylabel("Density")
+        ax.set_title("Density Histogram of the Discriminator")
+    else:
+        print("wrong stage")
+        return
+
+    # 绘制柱状图（seen_Malicious）
+    ax.bar(bins_hist[:-1], seen_malicious_counts, width=bar_width, align='edge',
+           color="#C0DFC0", edgecolor="#198D19", alpha=0.3, label="Seen Malicious")
+
+    # 绘制柱状图（unseen_Malicious）
+    ax.bar(bins_hist[:-1], unseen_malicious_counts, width=bar_width, align='edge',
+           color="#FFD966", edgecolor="#FFC000", alpha=0.3, label="Unseen Malicious")
+
+    ax.legend(loc='upper right', bbox_to_anchor=(0.9, 1))  # 让图例稍微向左移动
+    plt.show()
+
 def indicator(k_matrix, sentry):
     # obtain adaptive K for each sample
     k_values = adaptive_K.view(-1).long()
@@ -136,6 +201,7 @@ def indicator(k_matrix, sentry):
 
 def evaluation(y_true, score, option):
     # classification report
+    score = np.array(score)
     if option == 3:
         report = classification_report(y_true, score,
                                        target_names=dataset.traffic_names[dataset.knownclasses.cpu().numpy()], digits=4)
@@ -268,7 +334,7 @@ opt = parser.parse_args()
 
 # load pre-defined hyperparameters
 # note: If you want to customize the hyperparameters, please comment out this line of code.
-opt = load_args("args/botiot_args.json")
+opt = load_args("args/cicids_args.json")
 
 # set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -306,6 +372,8 @@ end_time = time.time()
 # evaluation of detector
 y_true = dataset.binary_test.cpu().numpy()
 detector_prediction, _ = evaluation(y_true, detector_score, 1)
+histogram_plot(detector_score, 1)
+
 print("end evaluating detector")
 print("Inference time of the detector：%.4f seconds" % (end_time - start_time))
 
@@ -347,7 +415,7 @@ discriminator_score = indicator(indice_matrix, sentry)
 
 discriminator_prediction, threshold = evaluation(dataset.test_seen_unseen_label.cpu().numpy(),
                                                   discriminator_score.cpu().numpy(), 2)
-
+histogram_plot(discriminator_score.cpu().numpy(), 2)
 print("end fitting and evaluating discriminator")
 
 # 3rd step: Classify known categories traffic
