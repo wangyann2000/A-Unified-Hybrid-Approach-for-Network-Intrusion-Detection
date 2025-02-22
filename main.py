@@ -437,7 +437,7 @@ if opt.customized:
     # load unknown_class_classifier
     unknown_class_classifier = xgb.XGBClassifier()
     unknown_class_classifier.load_model('./models/' + opt.dataset + '/' + opt.split + '/cls.model')
-    mapper = Embedding_Net(opt).to(device)
+    mapper = EmbeddingNet(opt).to(device)
     mapper.load_state_dict(torch.load('./models/' + opt.dataset + '/' + opt.split + '/map.pt'))
     mapper.eval()
     # inference procedure of unknown_class_classifier
