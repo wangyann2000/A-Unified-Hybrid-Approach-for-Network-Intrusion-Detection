@@ -10,5 +10,6 @@
     "khat": 200,
     "customized": false,
     "f1score": true,
-    "threshold": 0.99
+    "threshold": 0.99,
+    "factor": 0.02
 }

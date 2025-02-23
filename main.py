@@ -1,4 +1,3 @@
-
 from copy import deepcopy
 import random
 import time
@@ -16,6 +15,7 @@ from tqdm import trange
 from model import EmbeddingNet
 import json
 import umap
+import matplotlib.colors as mcolors
 
 # set cuda environment variable
 # note: Please comment out this line of code, if GPU is unavailable,
@@ -23,6 +23,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 # required functions
 class ConfusionMatrix(object):
+    # plot confusion matrix
     def __init__(self, num_classes: int, labels: list, highlight_indices: np.ndarray = None):
         self.num_classes = num_classes
         self.labels = labels
@@ -110,17 +111,14 @@ def random_sampling(feature, label, sample_ratio):
     return feature[sampled_indices], label[sampled_indices], sampled_indices
 
 def manifold_visualization(score):
-    # 随机采样
+    # random sampling and concatenate
     sampled_seen_feature, sampled_seen_label, sampled_seen_indices = random_sampling(dataset.test_seen_feature, dataset.test_seen_label,
-                                                                                     0.1)
+                                                                                     5 * opt.factor)
     sampled_unseen_feature, sampled_unseen_label, sampled_unseen_indices = random_sampling(dataset.test_unseen_feature,
-                                                                                           dataset.test_unseen_label, 0.02)
-    sampled_seen_label = torch.zeros_like(sampled_seen_label).to(device)
-    sampled_unseen_label = torch.ones_like(sampled_unseen_label).to(device)
-    # 合并特征与标签
+                                                                                           dataset.test_unseen_label, opt.factor)
     features = torch.cat((sampled_seen_feature, sampled_unseen_feature), dim=0)
 
-    # 处理 OOD 分数
+    # corresponding OOD score
     score_seen, score_unseen = torch.split(score, [len(dataset.test_seen_label), len(dataset.test_unseen_label)])
     sampled_score_seen = score_seen[sampled_seen_indices]
     sampled_score_unseen = score_unseen[sampled_unseen_indices]
@@ -129,26 +127,36 @@ def manifold_visualization(score):
     features = features.cpu().numpy()
     ood_scores = ood_scores.cpu().numpy()
 
+    # feature dimensionality reduction with umap
     reducer = umap.UMAP()
     embedding = reducer.fit_transform(features)
 
+    # create and set colormap
+    cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", ['#5AD4DB', '#DB5C54'])
+    num_seen = len(sampled_seen_label)
+    num_unseen = len(embedding) - num_seen
+    colors = np.concatenate([
+        np.full(num_seen, 0),  # Seen 类映射为 0
+        np.full(num_unseen, 1)  # Unseen 类映射为 1
+    ])
+
+    # manifold of malicious traffic
+    result_dir = f'./result/{opt.dataset}/discrimination/{opt.split}/'
+    os.makedirs(result_dir, exist_ok=True)
     plt.figure(figsize=(6, 4))
-    plt.scatter(embedding[:len(sampled_seen_label), 0], embedding[:len(sampled_seen_label), 1],
-                c='#DB5C54', label='Seen', alpha=0.6)
-    plt.scatter(embedding[len(sampled_seen_label):, 0], embedding[len(sampled_seen_label):, 1],
-                c='#5AD4DB', label='Unseen', alpha=0.6)
-    plt.colorbar(label='Class Label')
-    plt.title('UMAP Visualization of Malicious Traffic')
-    plt.xlabel('UMAP Dimension 1')
-    plt.ylabel('UMAP Dimension 2')
+    scatter = plt.scatter(embedding[:, 0], embedding[:, 1], c=colors, cmap=cmap, alpha=0.6)
+    cbar = plt.colorbar(scatter)
+    cbar.set_label('Class Label')
+    plt.title('Visualization of Malicious Traffic')
+    plt.savefig(result_dir + 'manifold.svg', bbox_inches='tight')
     plt.show()
 
+    # corresponding OOD score
     plt.figure(figsize=(6, 4))
-    scatter = plt.scatter(embedding[:, 0], embedding[:, 1], c=ood_scores, cmap='Spectral', alpha=0.6)
+    scatter = plt.scatter(embedding[:, 0], embedding[:, 1], c=ood_scores, cmap='Spectral_r', alpha=0.6)
     plt.colorbar(scatter, label='OOD Score')
-    plt.title('UMAP Visualization of OOD Scores')
-    plt.xlabel('UMAP Dimension 1')
-    plt.ylabel('UMAP Dimension 2')
+    plt.title('Visualization of OOD Scores')
+    plt.savefig(result_dir + 'scores.svg', bbox_inches='tight')
     plt.show()
 
 def histogram_plot(pred_score, stage):
@@ -164,12 +172,13 @@ def histogram_plot(pred_score, stage):
 
     # set the x-axis scale
     ax.set_xticks(np.arange(x_min, x_max + x_interval, x_interval))
-    ax.set_xlim(x_min - 0.02, x_max + 0.02)
+    ax.set_xlim(x_min - 0.01 * range_x, x_max + 0.01 * range_x)
 
     # count the samples in each interval
     seen_unseen_label = dataset.test_seen_unseen_label.cpu().numpy()
     # detection
     if stage == 1:
+        result_dir = f'./result/{opt.dataset}/detection/{opt.split}/'
         benign_label = dataset.binary_test.cpu().numpy()
         benign_counts, _ = np.histogram(pred_score[benign_label == 0], bins=bins_hist)
         malicious = pred_score[benign_label == 1]
@@ -181,20 +190,21 @@ def histogram_plot(pred_score, stage):
         unseen_malicious_counts = unseen_malicious_counts / len(malicious[seen_unseen_label == 1])
         # plot histogram of benign traffic
         ax.bar(bins_hist[:-1], benign_counts, width=bar_width, align='edge',
-               color="#C7DDEC", edgecolor="#3E89BE", alpha=0.3, label="Benign")
+               color="#BDD7EE", edgecolor="#4472C4", alpha=0.3, label="Benign")
         # set labels and legend
-        ax.set_xlabel("Detector Score")
+        ax.set_xlabel("Anomaly Score")
         ax.set_ylabel("Density")
         ax.set_title("Density Histogram of the Detector")
     # discrimination
     elif stage == 2:
+        result_dir = f'./result/{opt.dataset}/discrimination/{opt.split}/'
         seen_malicious_counts, _ = np.histogram(pred_score[seen_unseen_label == 0], bins=bins_hist)
         unseen_malicious_counts, _ = np.histogram(pred_score[seen_unseen_label == 1], bins=bins_hist)
         # normalization
         seen_malicious_counts = seen_malicious_counts / len(pred_score[seen_unseen_label == 0])
         unseen_malicious_counts = unseen_malicious_counts / len(pred_score[seen_unseen_label == 1])
         # set labels and legend
-        ax.set_xlabel("Discriminator Score")
+        ax.set_xlabel("OOD Score")
         ax.set_ylabel("Density")
         ax.set_title("Density Histogram of the Discriminator")
     else:
@@ -203,13 +213,16 @@ def histogram_plot(pred_score, stage):
 
     # plot histogram of seen malicious traffic
     ax.bar(bins_hist[:-1], seen_malicious_counts, width=bar_width, align='edge',
-           color="#C0DFC0", edgecolor="#198D19", alpha=0.3, label="Seen Malicious")
+           color="#C5E0B4", edgecolor="#73BA4A", alpha=0.3, label="Seen Malicious")
 
     # plot histogram of unseen malicious traffic
     ax.bar(bins_hist[:-1], unseen_malicious_counts, width=bar_width, align='edge',
            color="#FFD966", edgecolor="#FFC000", alpha=0.3, label="Unseen Malicious")
 
     ax.legend(loc='upper right', bbox_to_anchor=(0.9, 1))
+
+    os.makedirs(result_dir, exist_ok=True)
+    plt.savefig(result_dir + 'histogram.svg', bbox_inches='tight')
     plt.show()
 
 def indicator(k_matrix, sentry):
@@ -292,8 +305,6 @@ def evaluation(y_true, score, option):
     print(f"Confusion Matrix:\n{conf_matrix}")
 
     # visualization of Precision-Recall Curve
-    import matplotlib.pyplot as plt
-
     plt.figure()
     plt.plot(recall, precision, marker='.')
     plt.xlabel('Recall')
@@ -362,6 +373,7 @@ parser.add_argument('--khat', type=int, default=200, help='To calculate local de
 parser.add_argument('--customized', type=bool, default=False, help='Whether to use customized model')
 parser.add_argument('--f1score', type=bool, default=False, help='Evaluate model performance with optimal F1-score')
 parser.add_argument('--threshold', type=float, default=0.99, help='Evaluate model performance with TPR[threshold]')
+parser.add_argument('--factor', type=float, default=0.02, help='Scaling factor for umap visualization')
 
 opt = parser.parse_args()
 
@@ -506,18 +518,18 @@ score_for_malicious = detector_prediction[dataset.benign_size_test:]
 score_for_seen = discriminator_prediction[:dataset.test_seen_feature.shape[0]]
 score_for_unseen = discriminator_prediction[dataset.test_seen_feature.shape[0]:]
 
-# get index for misdetected benign traffic
+# get index for wrongly detected benign traffic
 det_wrong_benign = torch.where(score_for_benign.eq(1))[0].to(device)
 # get index for undetected malicious traffic
 det_wrong_malicious = torch.where(score_for_malicious.eq(0))[0].to(device)
 
-# get index for misdiscriminated seen malicious traffic
+# get index for wrongly discriminated seen malicious traffic
 dis_wrong_seen = torch.where(score_for_seen.eq(1))[0].to(device)
-# get index for misdiscriminated unseen malicious traffic
+# get index for wrongly discriminated unseen malicious traffic
 dis_wrong_unseen = torch.where(score_for_unseen.eq(0))[0].to(device)
 
 with torch.no_grad():
-    # 1.give misdiscriminated seen malicious traffic new labels from unseen classes
+    # 1.give wrongly discriminated seen malicious traffic new labels from unseen classes
     if len(dis_wrong_seen) > 0:
         if opt.customized:
             seen_features = dataset.test_seen_feature[dis_wrong_seen]
@@ -531,7 +543,7 @@ with torch.no_grad():
             corrected_seen_preds_inverse = inverse_map(corrected_seen_preds, dataset.unseen_classes)
             preds_all[dataset.benign_size_test + dis_wrong_seen.cpu().numpy()] = corrected_seen_preds_inverse
 
-    # 2. give misdiscriminated unseen malicious traffic new labels from seen classes
+    # 2. give wrongly discriminated unseen malicious traffic new labels from seen classes
     if len(dis_wrong_unseen) > 0:
         unseen_features = dataset.test_unseen_feature[dis_wrong_unseen]
         corrected_unseen_preds = seen_class_classifier.predict(unseen_features.cpu().numpy())
@@ -539,7 +551,7 @@ with torch.no_grad():
         preds_all[dataset.benign_size_test + dataset.test_seen_feature.shape[
             0] + dis_wrong_unseen.cpu().numpy()] = corrected_unseen_preds_inverse
 
-    # 3. give misdetected benign traffic new labels from malicious classes
+    # 3. give wrongly detected benign traffic new labels from malicious classes
     if len(det_wrong_benign) > 0:
         test_benign_feature = dataset.test_feature[:dataset.benign_size_test]
         benign_features = test_benign_feature[det_wrong_benign]
