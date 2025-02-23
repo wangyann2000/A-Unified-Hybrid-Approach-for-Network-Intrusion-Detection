@@ -2,11 +2,9 @@ import numpy as np
 import torch
 from sklearn import preprocessing
 
-
 class DataLoader(object):
     def __init__(self, opt):
-        self.index_in_epoch = 0
-        self.epochs_completed = 0
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # read malicious traffic and benign traffic
         if opt.dataset == 'botiot':
             malicious_content = np.load(f"./data/botiot/{opt.split}.npz", allow_pickle=True)  # change to the root path
@@ -44,57 +42,54 @@ class DataLoader(object):
         combined_test_feature = detector_scaler.transform(combined_test_feature)
 
         # all features for training detector and inference(including benign traffic features)
-        self.train_feature = torch.tensor(combined_train_feature, dtype=torch.float32).cuda()
-        self.test_feature = torch.tensor(combined_test_feature, dtype=torch.float32).cuda()
+        self.train_feature = torch.tensor(combined_train_feature, dtype=torch.float32).to(self.device)
+        self.test_feature = torch.tensor(combined_test_feature, dtype=torch.float32).to(self.device)
 
         # all labels for training detector(including benign traffic features)
-        self.train_label = torch.tensor(np.concatenate((by_train, train_label), axis=0), dtype=torch.long).cuda()
+        self.train_label = torch.tensor(np.concatenate((by_train, train_label), axis=0), dtype=torch.long).to(self.device)
         self.test_label = torch.tensor(np.concatenate((by_test, test_seen_label, test_unseen_label), axis=0),
-                                       dtype=torch.long).cuda()
+                                       dtype=torch.long).to(self.device)
 
         # all binary labels for training detector(including benign traffic features, 1 for benign and 2 for malicious)
-        binary_by_train = torch.zeros(by_train.shape[0], dtype=torch.long).cuda()
-        binary_by_test = torch.zeros(by_test.shape[0], dtype=torch.long).cuda()
-        binary_ay_train = torch.ones(train_label.shape[0], dtype=torch.long).cuda()
-        binary_ay_test = torch.ones(test_seen_label.shape[0] + test_unseen_label.shape[0], dtype=torch.long).cuda()
+        binary_by_train = torch.zeros(by_train.shape[0], dtype=torch.long).to(self.device)
+        binary_by_test = torch.zeros(by_test.shape[0], dtype=torch.long).to(self.device)
+        binary_ay_train = torch.ones(train_label.shape[0], dtype=torch.long).to(self.device)
+        binary_ay_test = torch.ones(test_seen_label.shape[0] + test_unseen_label.shape[0], dtype=torch.long).to(self.device)
         self.binary_train = torch.cat((binary_by_train, binary_ay_train), dim=0)
         self.binary_test = torch.cat((binary_by_test, binary_ay_test), dim=0)
 
         # all malicious traffic features for training discriminator and inference
         combined_all_malicious_feature = np.concatenate((train_feature, test_seen_feature, test_unseen_feature), axis=0)
         self.all_malicious_feature = torch.tensor(discriminator_scaler.fit_transform(combined_all_malicious_feature),
-                                                  dtype=torch.float32).cuda()
+                                                  dtype=torch.float32).to(self.device)
 
-        # all binary malicious traffic labels for training discriminator(1 for known and 2 for unknown)
-        binary_ky_test = torch.zeros(test_seen_label.shape[0], dtype=torch.long).cuda()
-        binary_uy_test = torch.ones(test_unseen_label.shape[0], dtype=torch.long).cuda()
+        # all binary malicious traffic labels for training discriminator(0 for seen and 1 for unseen)
+        binary_ky_test = torch.zeros(test_seen_label.shape[0], dtype=torch.long).to(self.device)
+        binary_uy_test = torch.ones(test_unseen_label.shape[0], dtype=torch.long).to(self.device)
         self.test_seen_unseen_label = torch.cat((binary_ky_test, binary_uy_test), dim=0)
 
         # all malicious traffic features for training classifier
         self.train_seen_feature = torch.tensor(classifier_scaler.fit_transform(train_feature),
-                                               dtype=torch.float32).cuda()
+                                               dtype=torch.float32).to(self.device)
         self.test_seen_feature = torch.tensor(classifier_scaler.transform(test_seen_feature),
-                                              dtype=torch.float32).cuda()
+                                              dtype=torch.float32).to(self.device)
         self.test_unseen_feature = torch.tensor(classifier_scaler.transform(test_unseen_feature),
-                                                dtype=torch.float32).cuda()
+                                                dtype=torch.float32).to(self.device)
 
         # all malicious traffic labels for training detector
-        self.train_seen_label = torch.tensor(train_label, dtype=torch.long).cuda()
-        self.test_seen_label = torch.tensor(test_seen_label, dtype=torch.long).cuda()
-        self.test_unseen_label = torch.tensor(test_unseen_label, dtype=torch.long).cuda()
+        self.train_seen_label = torch.tensor(train_label, dtype=torch.long).to(self.device)
+        self.test_seen_label = torch.tensor(test_seen_label, dtype=torch.long).to(self.device)
+        self.test_unseen_label = torch.tensor(test_unseen_label, dtype=torch.long).to(self.device)
 
-        # known, unknown, malicious, all traffic categories
-        self.knownclasses = torch.unique(self.test_seen_label)
-        self.novelclasses = torch.unique(self.test_unseen_label)
-        self.maliciousclasses = torch.cat((self.knownclasses, self.novelclasses), dim=0)
-        self.allclasses = torch.unique(self.test_label)
-
-        # unique item for MADF
-        self.madfknownclasses = torch.unique(self.train_label)
+        # seen, unseen, malicious, all traffic categories
+        self.seen_classes = torch.unique(self.test_seen_label)
+        self.unseen_classes = torch.unique(self.test_unseen_label)
+        self.malicious_classes = torch.cat((self.seen_classes, self.unseen_classes), dim=0)
+        self.all_classes = torch.unique(self.test_label)
 
         # number of samples in training set and test set
-        self.ntrain = self.train_feature.size()[0]
-        self.ntest = self.test_feature.size()[0]
+        self.num_train = self.train_feature.size()[0]
+        self.num_test = self.test_feature.size()[0]
         # size of benign traffic
         self.benign_size_test = by_test.shape[0]
         # all categories name
@@ -105,5 +100,5 @@ class DataLoader(object):
         print("Dataset details")
         for i, count in zip(unique_labels, counts):
             print(f'{self.traffic_names[i]}: {count.item()} samples')
-        print("Known malicious traffic categories:", self.traffic_names[self.knownclasses.cpu()])
-        print("Unknown malicious traffic categories:", self.traffic_names[self.novelclasses.cpu()])
+        print("Seen malicious traffic categories:", self.traffic_names[self.seen_classes.cpu()])
+        print("Unseen malicious traffic categories:", self.traffic_names[self.unseen_classes.cpu()])
