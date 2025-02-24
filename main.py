@@ -128,11 +128,11 @@ def manifold_visualization(score):
     ood_scores = ood_scores.cpu().numpy()
 
     # feature dimensionality reduction with umap
-    reducer = umap.UMAP()
+    reducer = umap.UMAP(random_state=opt.manualSeed)
     embedding = reducer.fit_transform(features)
 
     # create and set colormap
-    cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", ['#5AD4DB', '#DB5C54'])
+    cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", ['#1F77B4', '#ED7D31'])
     num_seen = len(sampled_seen_label)
     num_unseen = len(embedding) - num_seen
     colors = np.concatenate([
@@ -379,7 +379,7 @@ opt = parser.parse_args()
 
 # load pre-defined hyperparameters
 # note: If you want to customize the hyperparameters, please comment out this line of code.
-opt = load_args("args/cicids_args.json")
+opt = load_args("args/botiot_args.json")
 
 # set seed
 np.random.seed(opt.manualSeed)
