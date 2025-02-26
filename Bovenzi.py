@@ -97,8 +97,9 @@ def map_label(label, classes):
 
 def inverse_map(label, classes):
     # inverse label transformation
+    label = label.cpu().numpy() if hasattr(label, "cpu") else label
     mapped_label = np.zeros_like(label)
-    classes = classes.cpu().numpy()
+    classes = classes.cpu().numpy() if hasattr(classes, "cpu") else classes
     for i, class_label in enumerate(classes):
         mapped_label[label == i] = class_label
     return mapped_label
@@ -326,7 +327,7 @@ def evaluation(y_true, score, option):
             recall_per_class[cls.item()] = recall
             ave_recall += recall
 
-    ave_recall /= dataset.all_classes.shape[0]
+    ave_recall /= dataset.all_classes.shape[0] if option == 1 else dataset.malicious_classes.shape[0]
     print("Recall per class:")
     for cls, recall in recall_per_class.items():
         print(f"Class {dataset.traffic_names[cls]}: Recall = {recall}")
@@ -358,7 +359,7 @@ opt = parser.parse_args()
 
 # load pre-defined hyperparameters
 # note: If you want to customize the hyperparameters, please comment out this line of code.
-opt = load_args("args/cicids_args.json")
+opt = load_args("args/botiot_args.json")
 
 # set seed
 np.random.seed(opt.manualSeed)
