@@ -358,7 +358,7 @@ opt = parser.parse_args()
 
 # load pre-defined hyperparameters
 # note: If you want to customize the hyperparameters, please comment out this line of code.
-opt = load_args("args/botiot_args.json")
+opt = load_args("args/cicids_args.json")
 
 # set seed
 np.random.seed(opt.manualSeed)
@@ -408,7 +408,7 @@ print("start fitting and evaluating discriminator")
 seen_class_classifier = xgb.XGBClassifier()
 seen_class_classifier.fit(dataset.train_seen_feature.cpu().numpy(), map_label(dataset.train_seen_label, dataset.seen_classes).cpu().numpy())
 proba = seen_class_classifier.predict_proba(test_feature.cpu().numpy())
-discriminator_score = np.min(proba, axis=1)
+discriminator_score = 1 / np.max(proba, axis=1)
 
 discriminator_prediction, threshold = evaluation(dataset.test_seen_unseen_label.cpu().numpy(), discriminator_score, 2)
 
