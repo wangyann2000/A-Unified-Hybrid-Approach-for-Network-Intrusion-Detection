@@ -48,8 +48,8 @@ class ConfusionMatrix(object):
             plt.figure(figsize=(10, 8))
             fontsize = 8
         elif opt.dataset == 'botiot':
-            plt.figure(figsize=(7, 6))
-            fontsize = 7
+            plt.figure(figsize=(10, 8))
+            fontsize = 15
         else:
             print("Please define the figure size and fontsize in advance.")
             return
