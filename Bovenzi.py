@@ -46,8 +46,8 @@ class ConfusionMatrix(object):
             plt.figure(figsize=(10, 8))
             fontsize = 8
         elif opt.dataset == 'botiot':
-            plt.figure(figsize=(7, 6))
-            fontsize = 7
+            plt.figure(figsize=(10, 8))
+            fontsize = 15
         else:
             print("Please define the figure size and fontsize in advance.")
             return
@@ -108,6 +108,55 @@ def random_sampling(feature, label, sample_ratio):
     sampled_indices = torch.randperm(len(label))[:num_samples]
     return feature[sampled_indices], label[sampled_indices], sampled_indices
 
+def manifold_visualization(score):
+    # random sampling and concatenate
+    sampled_seen_feature, sampled_seen_label, sampled_seen_indices = random_sampling(dataset.test_seen_feature, dataset.test_seen_label,
+                                                                                     5 * opt.factor)
+    sampled_unseen_feature, sampled_unseen_label, sampled_unseen_indices = random_sampling(dataset.test_unseen_feature,
+                                                                                           dataset.test_unseen_label, opt.factor)
+    features = torch.cat((sampled_seen_feature, sampled_unseen_feature), dim=0)
+
+    # corresponding OOD score
+    score = torch.from_numpy(score).to(device)
+    score_seen, score_unseen = torch.split(score, [len(dataset.test_seen_label), len(dataset.test_unseen_label)])
+    sampled_score_seen = score_seen[sampled_seen_indices]
+    sampled_score_unseen = score_unseen[sampled_unseen_indices]
+    ood_scores = torch.cat((sampled_score_seen, sampled_score_unseen), dim=0)
+
+    features = features.cpu().numpy()
+    ood_scores = ood_scores.cpu().numpy()
+
+    # feature dimensionality reduction with umap
+    reducer = umap.UMAP(random_state=opt.manualSeed)
+    embedding = reducer.fit_transform(features)
+
+    # create and set colormap
+    cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", ['#1F77B4', '#ED7D31'])
+    num_seen = len(sampled_seen_label)
+    num_unseen = len(embedding) - num_seen
+    colors = np.concatenate([
+        np.full(num_seen, 0),  # Seen 类映射为 0
+        np.full(num_unseen, 1)  # Unseen 类映射为 1
+    ])
+
+    # manifold of malicious traffic
+    result_dir = f'./result/{opt.dataset}/discrimination/Bovenzi/{opt.split}/'
+    os.makedirs(result_dir, exist_ok=True)
+    plt.figure(figsize=(6, 4))
+    scatter = plt.scatter(embedding[:, 0], embedding[:, 1], c=colors, cmap=cmap, alpha=0.6)
+    cbar = plt.colorbar(scatter)
+    cbar.set_label('Class Label')
+    plt.title('Visualization of Malicious Traffic')
+    plt.savefig(result_dir + 'manifold.svg', bbox_inches='tight')
+    plt.show()
+
+    # corresponding OOD score
+    plt.figure(figsize=(6, 4))
+    scatter = plt.scatter(embedding[:, 0], embedding[:, 1], c=ood_scores, cmap='Spectral_r', alpha=0.6)
+    plt.colorbar(scatter, label='OOD Score')
+    plt.title('Visualization of OOD Scores')
+    plt.savefig(result_dir + 'scores.svg', bbox_inches='tight')
+    plt.show()
 
 def histogram_plot(pred_score, stage):
     # set axis interval
@@ -365,7 +414,7 @@ discriminator_prediction, threshold = evaluation(dataset.test_seen_unseen_label.
 
 # plot histogram and manifold
 histogram_plot(discriminator_score, 2)
-
+manifold_visualization(discriminator_score)
 print("end fitting and evaluating discriminator")
 
 # 3rd step: Classify seen categories traffic
@@ -489,6 +538,9 @@ if opt.dataset == 'cicids':
     traffic_names[-1] = "XSS"
     traffic_names[-2] = "Sql Injection"
     traffic_names[-3] = "Brute Force"
+elif opt.dataset == 'botiot':
+    traffic_names[-2] = "Scan"
+
 confusion = ConfusionMatrix(num_classes=len(dataset.all_classes), labels=traffic_names,
                             highlight_indices=dataset.unseen_classes.cpu().numpy())
 confusion.update(preds_all, dataset.test_label.cpu().numpy())
