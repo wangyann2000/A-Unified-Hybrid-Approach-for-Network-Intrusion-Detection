@@ -608,6 +608,8 @@ if opt.dataset == 'cicids':
     traffic_names[-1] = "XSS"
     traffic_names[-2] = "Sql Injection"
     traffic_names[-3] = "Brute Force"
+elif opt.dataset == 'botiot':
+    traffic_names[-2] = "Scan"
 confusion = ConfusionMatrix(num_classes=len(dataset.all_classes), labels=traffic_names,
                             highlight_indices=dataset.unseen_classes.cpu().numpy())
 confusion.update(preds_all, dataset.test_label.cpu().numpy())
