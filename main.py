@@ -167,13 +167,26 @@ def histogram_plot(pred_score, stage):
     range_x = x_max - x_min
     x_interval = range_x / 5
 
-    bins_hist = np.linspace(x_min, x_max, 15)
+    bins_hist = np.linspace(x_min, x_max, 26)
     bar_width = bins_hist[1] - bins_hist[0]
+
+    # set font to Times New Roman
+    plt.rcParams['font.family'] = 'Times New Roman'
+
     fig, ax = plt.subplots(figsize=(6, 4))
+
+    # remove axis lines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    # set the main scale line color
+    ax.tick_params(axis='both', length=0, labelcolor='#000000')
 
     # set the x-axis scale
     ax.set_xticks(np.arange(x_min, x_max + x_interval, x_interval))
-    ax.set_xlim(x_min - 0.01 * range_x, x_max + 0.01 * range_x)
+    ax.set_xlim(x_min - 0.02 * range_x, x_max + 0.02 * range_x)
 
     # count the samples in each interval
     seen_unseen_label = dataset.test_seen_unseen_label.cpu().numpy()
@@ -191,7 +204,7 @@ def histogram_plot(pred_score, stage):
         unseen_malicious_counts = unseen_malicious_counts / len(malicious[seen_unseen_label == 1])
         # plot histogram of benign traffic
         ax.bar(bins_hist[:-1], benign_counts, width=bar_width, align='edge',
-               color="#BDD7EE", edgecolor="#4472C4", alpha=0.3, label="Benign")
+               color="#5B9BD5", alpha=0.5, label="Benign")
         # set labels and legend
         ax.set_xlabel("Anomaly Score")
         ax.set_ylabel("Density")
@@ -214,11 +227,14 @@ def histogram_plot(pred_score, stage):
 
     # plot histogram of seen malicious traffic
     ax.bar(bins_hist[:-1], seen_malicious_counts, width=bar_width, align='edge',
-           color="#C5E0B4", edgecolor="#73BA4A", alpha=0.3, label="Seen Malicious")
+           color="#70AD47", alpha=0.5, label="Seen Malicious")
 
     # plot histogram of unseen malicious traffic
     ax.bar(bins_hist[:-1], unseen_malicious_counts, width=bar_width, align='edge',
-           color="#FFD966", edgecolor="#FFC000", alpha=0.3, label="Unseen Malicious")
+           color="#C00000", alpha=0.5, label="Unseen Malicious")
+
+    # add grid lines
+    ax.yaxis.grid(True, linestyle='--', linewidth=1.75, color='#D9D9D9')
 
     ax.legend(loc='upper right', bbox_to_anchor=(0.9, 1))
 
@@ -380,7 +396,7 @@ opt = parser.parse_args()
 
 # load pre-defined hyperparameters
 # note: If you want to customize the hyperparameters, please comment out this line of code.
-opt = load_args("args/cicids_args.json")
+opt = load_args("args/botiot_args.json")
 
 # set seed
 np.random.seed(opt.manualSeed)
