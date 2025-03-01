@@ -434,8 +434,11 @@ end_time = time.time()
 # evaluation of detector
 y_true = dataset.binary_test.cpu().numpy()
 detector_prediction, _ = evaluation(y_true, detector_score, 1)
+# plot histogram
 histogram_plot(detector_score, 1)
-
+# plot feature importance score
+xgb.plot_importance(model.model, max_num_features=10)
+plt.show()
 print("end evaluating detector")
 print("Inference time of the detector：%.4f seconds" % (end_time - start_time))
 
