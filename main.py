@@ -379,7 +379,7 @@ parser = argparse.ArgumentParser()
 # note: For all CIC-IDS2017 dataset splits, use cicids_args.json in args folder to get the reported result.
 # note: For all Bot-Iot dataset splits, use botiot_args.json in args folder to get the reported result.
 parser.add_argument('--dataset', default='cicids', help='Dataset')
-parser.add_argument('--split', default='4', help='Dataset split for training and evaluation')
+parser.add_argument('--split', default='1', help='Dataset split for training and evaluation')
 parser.add_argument('--manualSeed', type=int, default=42, help='Random seed')
 parser.add_argument('--resSize', type=int, default=70, help='Size of visual features')
 parser.add_argument('--embedSize', type=int, default=128, help='Size of embedding h')
@@ -388,7 +388,7 @@ parser.add_argument('--kmin', type=int, default=3, help='Local neighbors kmin')
 parser.add_argument('--kmax', type=int, default=20, help='Local neighbors kmax')
 parser.add_argument('--khat', type=int, default=200, help='To calculate local density')
 parser.add_argument('--customized', type=bool, default=False, help='Whether to use customized model')
-parser.add_argument('--f1score', type=bool, default=False, help='Evaluate model performance with optimal F1-score')
+parser.add_argument('--f1score', type=bool, default=True, help='Evaluate model performance with optimal F1-score')
 parser.add_argument('--threshold', type=float, default=0.99, help='Evaluate model performance with TPR[threshold]')
 parser.add_argument('--factor', type=float, default=0.02, help='Scaling factor for umap visualization')
 
@@ -634,4 +634,3 @@ confusion = ConfusionMatrix(num_classes=len(dataset.all_classes), labels=traffic
                             highlight_indices=dataset.unseen_classes.cpu().numpy())
 confusion.update(preds_all, dataset.test_label.cpu().numpy())
 confusion.plot()
-

@@ -1,6 +1,6 @@
 {
     "dataset": "botiot",
-    "split": "1",
+    "split": "2",
     "manualSeed": 42,
     "resSize": 70,
     "embedSize": 128,
@@ -11,5 +11,5 @@
     "customized": false,
     "f1score": false,
     "threshold": 0.99,
-    "factor": 0.005
+    "factor": 0.002
 }
